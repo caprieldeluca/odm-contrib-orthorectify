@@ -3,8 +3,7 @@
 # License: AGPLv3
 
 import os
-import sys
-sys.path.insert(0, os.path.join("..", "..", os.path.dirname(__file__)))
+import json
 
 from math import sqrt
 import rasterio
@@ -13,7 +12,10 @@ import numpy.ma as ma
 import multiprocessing
 import argparse
 from skimage.draw import line
-from opensfm import dataset
+# To read images as (height, width, bands) arrays.
+from skimage import io as skio
+# To convert OpenSfM's axis-angle rotations into 3x3 matrices.
+from scipy.spatial.transform import Rotation
 
 default_dem_path = "odm_dem/dsm.tif"
 default_outdir = "orthorectified"
@@ -72,7 +74,7 @@ target_images = [] # all
 if args.images:
     target_images = list(map(str.strip, args.images.split(",")))
     print("Processing %s images" % len(target_images))
-elif args.image_list:
+elif os.path.exists(image_list):
     with open(image_list) as f:
         target_images = list(filter(lambda filename: filename != '', map(str.strip, f.read().split("\n"))))
     print("Processing %s images" % len(target_images))
@@ -150,24 +152,31 @@ with rasterio.open(dem_path) as dem_raster:
 
     print("DEM dimensions: %sx%s pixels" % (w, h))
 
-    # Read reconstruction
-    udata = dataset.UndistortedDataSet(dataset.DataSet(os.path.join(dataset_path, "opensfm")), undistorted_data_path=os.path.join(dataset_path, "opensfm", "undistorted"))
-    reconstructions = udata.load_undistorted_reconstruction()
-    if len(reconstructions) == 0:
+    # Read camera poses.
+    shots_file = os.path.join(dataset_path, "odm_report", "shots.geojson")
+    if not os.path.exists(shots_file):
+        print("Whoops! Cannot find %s (we need that!)" % shots_file)
+        exit(1)
+    with open(shots_file) as f:
+        shots = [feat['properties'] for feat in json.load(f)['features']]
+    if len(shots) == 0:
         raise Exception("No reconstructions available")
 
     max_workers = args.threads
     print("Using %s threads" % max_workers)
 
-    reconstruction = reconstructions[0]
-    for shot in reconstruction.shots.values():
-        if len(target_images) == 0 or shot.id in target_images:
+    for shot in shots:
+        shot_id = shot['filename']
+        if len(target_images) == 0 or shot_id in target_images:
 
-            print("Processing %s..." % shot.id)
-            shot_image = udata.load_undistorted_image(shot.id)
-
-            r = shot.pose.get_rotation_matrix()
-            Xs, Ys, Zs = shot.pose.get_origin()
+            print("Processing %s..." % shot_id)
+            shot_image = skio.imread(os.path.join(dataset_path, "images", shot_id))
+            # Get rotation matrix.
+            r = Rotation.from_rotvec(shot['rotation']).as_matrix()
+            # Back to the offset frame used by the rest of the script.
+            Xs = shot['translation'][0] - dem_offset_x
+            Ys = shot['translation'][1] - dem_offset_y
+            Zs = shot['translation'][2]
             cam_grid_y, cam_grid_x = dem_raster.index(Xs + dem_offset_x, Ys + dem_offset_y)
 
             a1 = r[0][0]
@@ -194,7 +203,8 @@ with rasterio.open(dem_path) as dem_raster:
             half_img_w = (img_w - 1) / 2.0
             half_img_h = (img_h - 1) / 2.0
             print("Image dimensions: %sx%s pixels" % (img_w, img_h))
-            f = shot.camera.focal * max(img_h, img_w)
+            # Focal length in pixels.
+            f = shot['focal'] * max(img_h, img_w)
             has_nodata = dem_raster.profile.get('nodata') is not None
 
             def process_pixels(step):
@@ -376,7 +386,7 @@ with rasterio.open(dem_path) as dem_raster:
                     'crs': crs
                 }
 
-                outfile = os.path.join(cwd_path, shot.id)
+                outfile = os.path.join(cwd_path, shot_id)
                 if not outfile.endswith(".tif"):
                     outfile = outfile + ".tif"
 
