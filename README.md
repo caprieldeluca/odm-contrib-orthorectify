@@ -63,7 +63,4 @@ optional arguments:
 
 Help us improve this module! We could add:
 
- - [ ] GPU support for faster processing
- - [ ] Merging of multiple orthorectified images (blending, filtering, seam leveling)
  - [ ] Faster visibility test
- - [ ] Different methods for orthorectification (direct)
