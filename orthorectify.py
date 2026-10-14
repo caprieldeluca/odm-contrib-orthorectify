@@ -208,6 +208,7 @@ with rasterio.open(dem_path) as dem_raster:
             has_nodata = dem_raster.profile.get('nodata') is not None
 
             def process_pixels(step):
+                # Create a NaN's image.
                 imgout = np.full((num_bands, dem_bbox_h, dem_bbox_w), np.nan)
 
                 minx = dem_bbox_w
@@ -368,8 +369,8 @@ with rasterio.open(dem_path) as dem_raster:
                     # Set all not-NaN indices to 255
                     alpha[~np.isnan(imgout[0])] = 255
 
-                # Cast
-                imgout = imgout.astype(shot_image.dtype)
+                # Cast (convert Nan's to 0).
+                imgout = np.nan_to_num(imgout, nan=0).astype(shot_image.dtype)
 
                 dem_transform = dem_raster.profile['transform']
                 offset_x, offset_y = dem_raster.xy(dem_bbox_miny + miny, dem_bbox_minx + minx, offset='ul')
