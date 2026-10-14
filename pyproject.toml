@@ -1,0 +1,10 @@
+[project]
+name = "odm-contrib-orthorectify"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=2.4.6",
+    "rasterio>=1.4.4",
+    "scikit-image>=0.26.0",
+    "scipy>=1.17.1",
+]

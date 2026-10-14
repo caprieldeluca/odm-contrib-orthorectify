@@ -8,6 +8,18 @@ This tool is capable of orthorectifying individual images (or all images) from a
 
 ## Usage
 
+### From WebODM
+
+Run a reconstruction without camera claibration (*use-fixed-camera-params* flag) in WebODM. Export all assets. 
+
+Run *orthorectfy* against the project path:
+
+```
+uv run python -u orthorectify.py datasets/project
+```
+
+### From docker ODM
+
 After running a reconstruction using ODM:
 
 ```
