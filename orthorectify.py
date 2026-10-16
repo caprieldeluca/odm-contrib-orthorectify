@@ -80,7 +80,7 @@ elif os.path.exists(image_list):
     print("Processing %s images" % len(target_images))
 
 if not os.path.exists(dem_path):
-    print("Whoops! %s does not exist. Provide a path to a valid DEM" % dem_path)
+    print("Error: %s does not exist. Provide a path to a valid DEM" % dem_path)
     exit(1)
 
 
@@ -138,7 +138,7 @@ with rasterio.open(dem_path) as dem_raster:
         # Read coords.txt
         coords_file = os.path.join(dataset_path, "odm_georeferencing", "coords.txt")
         if not os.path.exists(coords_file):
-            print("Whoops! Cannot find %s (we need that!)" % coords_file)
+            print("Error: Cannot find %s (we need that!)" % coords_file)
             exit(1)
         
         with open(coords_file) as f:
@@ -155,13 +155,20 @@ with rasterio.open(dem_path) as dem_raster:
     # Read camera poses.
     shots_file = os.path.join(dataset_path, "odm_report", "shots.geojson")
     if not os.path.exists(shots_file):
-        print("Whoops! Cannot find %s (we need that!)" % shots_file)
+        print("Error: Cannot find %s (we need that!)" % shots_file)
         exit(1)
     with open(shots_file) as f:
         shots = [feat['properties'] for feat in json.load(f)['features']]
     if len(shots) == 0:
         raise Exception("No reconstructions available")
 
+    # Verify if there is a shot entry for each image.
+    if target_images:
+        shot_ids = set(shot['filename'] for shot in shots)
+        missing = [img for img in target_images if img not in shot_ids]
+        for img in missing:
+            print("Warning: %s won't be processed, it is not in %s" % (img, shots_file))
+    
     max_workers = args.threads
     print("Using %s threads" % max_workers)
 
